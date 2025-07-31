@@ -1,5 +1,5 @@
 // Import necessary hooks and functions from React.
-import { useContext, useReducer, createContext } from "react";
+import { useContext, useReducer, createContext, useEffect } from "react";
 import storeReducer, { initialStore } from "../store"  // Import the reducer and the initial state.
 
 // Create a context to hold the global state of the application
@@ -11,6 +11,38 @@ const StoreContext = createContext()
 export function StoreProvider({ children }) {
     // Initialize reducer with the initial state.
     const [store, dispatch] = useReducer(storeReducer, initialStore())
+
+    // Efecto para cargar automáticamente el perfil del usuario si hay token
+    useEffect(() => {
+        const loadUserProfile = async () => {
+            if (store.token && !store.user) {
+                try {
+                    const backendUrl = import.meta.env.VITE_BACKEND_URL;
+
+                    const response = await fetch(`${backendUrl}/api/profile`, {
+                        method: "GET",
+                        headers: {
+                            "Authorization": `Bearer ${store.token}`,
+                            "Content-Type": "application/json",
+                        },
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        dispatch({ type: "set_user", payload: data.user });
+                    } else if (response.status === 401) {
+                        // Token inválido, limpiar autenticación
+                        dispatch({ type: "logout" });
+                    }
+                } catch (error) {
+                    console.error("Error loading user profile:", error);
+                }
+            }
+        };
+
+        loadUserProfile();
+    }, [store.token, store.user]);
+
     // Provide the store and dispatch method to all child components.
     return <StoreContext.Provider value={{ store, dispatch }}>
         {children}
